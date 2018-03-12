@@ -1,0 +1,91 @@
+---
+title: "Practical Machine Learning"
+author: "Dmitri Arykov"
+output:
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Analysis
+
+We are expected to build a multi-class classification algorithm, we are to predict 'classes' based on physical activity, it is reasonable to assume that variables that measure the body position are the ones that should be used for prediction. Looking through the variables we may select a handful of them out of 160.
+These may include variables that measure the parameters for body movement:
+
+roll_belt, pitch_belt, yaw_belt, total_accel_belt, gyros_belt_x, gyros_belt_y, gyros_belt_z,
+                  accel_belt_x, accel_belt_y, accel_belt_z, magnet_belt_x, magnet_belt_y, magnet_belt_z,
+                  roll_arm, pitch_arm, yaw_arm, total_accel_arm, gyros_arm_x, gyros_arm_y, gyros_arm_z,
+                  accel_arm_x, accel_arm_y, accel_arm_z, magnet_arm_x, magnet_arm_y, magnet_arm_z, 
+                  roll_dumbbell, pitch_dumbbell, yaw_dumbbell, accel_dumbbell_x, accel_dumbbell_y,                          accel_dumbbell_z, total_accel_dumbbell, gyros_dumbbell_x, gyros_dumbbell_y,                               gyros_dumbbell_z, magnet_forearm_x, magnet_forearm_y, magnet_forearm_z, 
+                  accel_forearm_x, accel_forearm_y, accel_forearm_z,
+                  gyros_forearm_x, gyros_forearm_y, gyros_forearm_z, total_accel_forearm, roll_forearm,                     pitch_forearm, yaw_forearm, magnet_dumbbell_x, magnet_dumbbell_y, magnet_dumbbell_z                     
+And we also need to include the variable giving labelled classes:
+classe
+
+#Graphs for some of the selected varibales conditioned on the output
+```{r plots}
+# Read the training data
+training <- read.csv(file = "pml-training.csv", header = TRUE)
+
+
+library(ggplot2)
+g<- ggplot(aes(x=roll_dumbbell) , data = training) + geom_histogram() + facet_wrap(~classe)
+g
+
+g1<- ggplot(aes(y=yaw_belt, x=classe) , data = training) + geom_boxplot()
+g1
+
+```
+<br />
+The graphs for two selected explanatory variables show some variability in the data. 
+
+We have a list of 50+ explanatory variables. 
+
+Given that we have a classification problem we can potentially try to use one of the tree like algorithms. Trees are noisy therefore averaging them (or taking majority vote) is a good option. The expectation of the average of the trees is the same as any given tree as the random variables are identically disctributed. Therefore bias of the trees is the same as that of the individual trees and the variance is reduced. If we use random forest model, variance is further reduced by attemting to use the variables that have smaller correlation in the tree growing. 
+
+K-fold cross validation is used: The data is split into a number of equal parts, and then the data is tested on the validation set, and fit again. The number of folds equal to 5 or 10 generally gives a good tadeoff between variance and bias. Cross validation is used to prevent overfitting.
+
+##Training 
+Set up libraries and parallel processing
+```{r multicore}
+# Add caret librtary & libraries to allow parallel processing
+library(caret)
+library(doParallel)
+set.seed(5868)
+registerDoParallel(cores = 7)
+```
+
+Training is done using the random forest model with cross validation method, with 10 cross validation folds, no pre-processing and standard settings, parallel computationas are allowed. 
+
+
+```{r train, cache = TRUE}
+mdl <- train(classe ~ roll_belt + pitch_belt + yaw_belt + total_accel_belt +
+                  gyros_belt_x + gyros_belt_y + gyros_belt_z +
+                  accel_belt_x + accel_belt_y + accel_belt_z +
+                  magnet_belt_x + magnet_belt_y + magnet_belt_z +
+                  roll_arm + pitch_arm + yaw_arm + total_accel_arm +
+                  gyros_arm_x + gyros_arm_y + gyros_arm_z +
+                  accel_arm_x + accel_arm_y + accel_arm_z +
+                  magnet_arm_x + magnet_arm_y + magnet_arm_z +
+                  roll_dumbbell + pitch_dumbbell + yaw_dumbbell +
+                  accel_dumbbell_x + accel_dumbbell_y + accel_dumbbell_z +
+                  total_accel_dumbbell + gyros_dumbbell_x + gyros_dumbbell_y +
+                  gyros_dumbbell_z + magnet_forearm_x + magnet_forearm_y + magnet_forearm_z +
+                  accel_forearm_x + accel_forearm_y + accel_forearm_z +
+                  gyros_forearm_x + gyros_forearm_y + gyros_forearm_z +
+                  total_accel_forearm + roll_forearm + pitch_forearm+ yaw_forearm +
+                  magnet_dumbbell_x +magnet_dumbbell_y + magnet_dumbbell_z,
+                  data = training, method = "rf",
+                  trControl = trainControl(method = "cv", number = 10, allowParallel = TRUE))
+                  
+mdl
+
+```
+The trained model shows 99% accuracy. 
+
+The out of sample error is generally expected to be somewaht higher than on the training set, however 
+given that training was done with 10-fold cross validation should not divert too far from in sample error.
+
